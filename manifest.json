@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 1,
+  "id": "swisscom-apn",
+  "name": "Swisscom APN",
+  "version": "1.0.0",
+  "author": "Omarchy",
+  "description": "Ensures a NetworkManager GSM connection profile exists for Swisscom's mobile data APN, and notifies you to run the bundled fix if it's missing. No bar icon.",
+  "kinds": [
+    "service"
+  ],
+  "entryPoints": {
+    "service": "Service.qml"
+  }
+}

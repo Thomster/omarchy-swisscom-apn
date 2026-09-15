@@ -1,0 +1,107 @@
+#!/bin/bash
+# omarchy-swisscom-apn-fix
+#
+# Creates the NetworkManager GSM connection profile for Swisscom's mobile
+# data APN (gprs.swisscom.ch), so a managed WWAN modem (see
+# omarchy-fibocom-l830, or any modem ModemManager already exposes as a
+# `gsm` device) has something to actually connect to. Unlike Wi-Fi or
+# Ethernet, NetworkManager never auto-creates a GSM connection profile on
+# its own -- APN/carrier settings have to be supplied explicitly.
+#
+# Usage:
+#   omarchy-swisscom-apn-fix --check [--quiet]   # read-only; exit 0 = fine, 1 = needs fix
+#   omarchy-swisscom-apn-fix [--force]           # creates the profile
+#
+# No root needed -- NetworkManager lets the active session's user manage
+# its own connection profiles.
+#
+# --force skips the detection gate (creates the profile even if no `gsm`
+# device is currently visible to NetworkManager -- useful if you're
+# setting this up before the modem side is fixed, since the profile just
+# sits inactive until a gsm device exists).
+
+set -uo pipefail
+
+APN="gprs.swisscom.ch"
+CON_NAME="Swisscom"
+
+MODE="fix"
+QUIET=0
+FORCE=0
+
+usage() {
+  cat <<'USAGE'
+Usage:
+  omarchy-swisscom-apn-fix --check [--quiet]
+      Read-only. Exit 0 = a gsm connection profile with the Swisscom APN
+      already exists (or no gsm device is visible, so there's nothing
+      useful to do yet). Exit 1 = a gsm device exists but no matching
+      profile does.
+
+  omarchy-swisscom-apn-fix [--force]
+      Creates a NetworkManager connection profile (type gsm, APN
+      gprs.swisscom.ch, autoconnect on). Does not activate it -- that's
+      left to the GSM widget / network-priority enforcement.
+USAGE
+}
+
+for arg in "$@"; do
+  case "$arg" in
+    --check) MODE="check" ;;
+    --fix) MODE="fix" ;;
+    --force) FORCE=1 ;;
+    --quiet) QUIET=1 ;;
+    -h|--help) usage; exit 0 ;;
+    *) echo "unknown option: $arg" >&2; usage >&2; exit 2 ;;
+  esac
+done
+
+log() { (( QUIET )) || echo "$@"; }
+
+profile_exists() {
+  nmcli -t -f TYPE,NAME connection show 2>/dev/null | awk -F: -v name="$CON_NAME" '$1=="gsm" && $2==name{f=1} END{exit !f}'
+}
+
+gsm_device_present() {
+  nmcli -t -f TYPE device status 2>/dev/null | grep -qx "gsm"
+}
+
+run_check() {
+  if profile_exists; then
+    log "The '$CON_NAME' gsm connection profile already exists. Nothing to do."
+    return 0
+  fi
+
+  if gsm_device_present; then
+    log "A gsm device is visible but no '$CON_NAME' connection profile exists."
+    log "Run: $0"
+    return 1
+  fi
+
+  log "No gsm device visible yet (modem not managed by ModemManager?) and no profile exists. If you want to set the profile up ahead of time anyway, re-run with --force."
+  return 0
+}
+
+run_fix() {
+  if profile_exists; then
+    log "The '$CON_NAME' gsm connection profile already exists. Nothing to do."
+    exit 0
+  fi
+
+  if (( ! FORCE )) && ! gsm_device_present; then
+    log "No gsm device visible yet. If you're confident you want the profile created ahead of time, re-run with --force."
+    exit 0
+  fi
+
+  nmcli connection add type gsm ifname "*" con-name "$CON_NAME" apn "$APN" || {
+    echo "nmcli connection add failed" >&2
+    exit 1
+  }
+
+  log "Created '$CON_NAME' (APN $APN). It will autoconnect once nothing higher-priority (Ethernet/Wi-Fi) is active."
+}
+
+case "$MODE" in
+  check) run_check; exit $? ;;
+  fix) run_fix ;;
+esac
