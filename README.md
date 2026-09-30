@@ -73,6 +73,10 @@ Pairs with [omarchy-fibocom-l830](https://github.com/Thomster/omarchy-fibocom-l8
 which keeps GSM deprioritized behind Ethernet and Wi-Fi once it can connect
 at all.
 
+## Changelog
+
+Current version: **1.0.1**. See [CHANGELOG.md](CHANGELOG.md).
+
 ## How this came to be
 
 This is a personal customization for my own Omarchy setup, built with the
